@@ -23,7 +23,7 @@ import scala.collection.mutable.ListBuffer
 /**
   * Created by hluu on 3/10/18.
   */
-class TwitterStreamingSource extends DataSourceV2 with MicroBatchReadSupport with DataSourceRegister with Logging {
+class TwitterStreamingSource extends MicroBatchReadSupport with DataSourceRegister with Logging {
 
   override def createMicroBatchReader(
                                        schema: Optional[StructType],

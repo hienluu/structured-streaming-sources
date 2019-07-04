@@ -45,7 +45,11 @@ class WikipediaEditStream(host:String, port:Int, queueSize:Int = 128)  {
 
   def leave(channel:String) {
     logger.info(s"leaving channel $channel..")
-    conn.send("PART " + channel);
+    if (conn != null) {
+      conn.send("PART " + channel);
+    } else {
+      logger.info("conn has not been initialized yet")
+    }
   }
 
   def getEdits() : BlockingQueue[WikipediaEditEvent] = {

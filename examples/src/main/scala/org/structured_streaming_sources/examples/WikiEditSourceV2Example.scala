@@ -1,4 +1,4 @@
-package org.wikiedit.examples
+package org.structured_streaming_sources.examples
 
 import java.util.concurrent.TimeUnit
 
@@ -6,7 +6,7 @@ import org.apache.spark.sql.SparkSession
 import org.structured_streaming_sources.wikedit.WikiEditSourceV2
 
 /**
-  * An exmaple to exercise WikiEditSourceV2
+  * An example to exercise WikiEditSourceV2
   *
   * See here for a list of channels - https://meta.wikimedia.org/wiki/IRC/Channels
   *
@@ -18,7 +18,7 @@ object WikiEditSourceV2Example {
   def main(args: Array[String]): Unit = {
 
     val providerClassName = SOURCE_PROVIDER_CLASS.substring(0, SOURCE_PROVIDER_CLASS.indexOf("$"))
-    println(providerClassName)
+    println("provider class: " + providerClassName)
 
     val spark = SparkSession
       .builder
@@ -27,8 +27,10 @@ object WikiEditSourceV2Example {
       .getOrCreate()
 
 
+    println("Spark version: " + spark.version)
+
     val wikiEdit = spark.readStream.format(providerClassName)
-                        .option("channel", "#fr.wikipedia")
+                        .option("channel", "#en.wikipedia")
                         .option("debugLevel", "info")
                         .load
 

@@ -7,3 +7,5 @@ project/target/
 project/project/
 spark-warehouse/
 bin/
+.idea_modules/
+projectFilesBackup/

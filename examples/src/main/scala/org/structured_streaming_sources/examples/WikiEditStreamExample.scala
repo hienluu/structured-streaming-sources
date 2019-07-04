@@ -1,4 +1,4 @@
-package org.wikiedit.examples
+package org.structured_streaming_sources.examples
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkConf

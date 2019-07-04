@@ -25,7 +25,7 @@ import scala.collection.mutable.ListBuffer
   *
   * Created by hluu on 3/3/18.
   */
-class WikiEditSourceV2 extends DataSourceV2 with MicroBatchReadSupport with DataSourceRegister with Logging {
+class WikiEditSourceV2 extends MicroBatchReadSupport with DataSourceRegister with Logging {
   override def createMicroBatchReader(
                                        schema: Optional[StructType],
                                        checkpointLocation: String,

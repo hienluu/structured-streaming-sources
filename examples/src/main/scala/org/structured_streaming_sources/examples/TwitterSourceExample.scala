@@ -1,4 +1,4 @@
-package org.wikiedit.examples
+package org.structured_streaming_sources.examples
 
 import org.apache.spark.sql.SparkSession
 import org.structured_streaming_sources.twitter.TwitterStreamingSource
