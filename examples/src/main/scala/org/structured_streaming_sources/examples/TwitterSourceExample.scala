@@ -36,11 +36,15 @@ object TwitterSourceExample {
                        .option(TwitterStreamingSource.CONSUMER_SECRET, consumerSecret)
                        .option(TwitterStreamingSource.ACCESS_TOKEN, accessToken)
                        .option(TwitterStreamingSource.ACCESS_TOKEN_SECRET, accessTokenSecret)
+                       //.option(TwitterStreamingSource.LANGUAGE, "en")
+                       .option(TwitterStreamingSource.FITLER_BY, "trump, tesla")
                          .load()
 
     tweetDF.printSchema()
 
-    val tweetQS = tweetDF.writeStream.format("console").start()
+    val tweetQS = tweetDF.writeStream.format("console")
+                                     .option("truncate", true)
+                                     .start()
 
     Thread.sleep(1000 * 35)
 

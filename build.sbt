@@ -1,7 +1,7 @@
 name := "structured-streaming-sources"
 
 lazy val commonSettings = Seq(
-  version := "0.0.1",
+  version := "0.0.2",
   organization := "org.structured-streaming-sources",
   scalaVersion := "2.11.8"
 )
@@ -18,7 +18,7 @@ lazy val examples = project.in(file("examples")).
                             libraryDependencies ++= commonDependencies
                           )
 
-val sparkVersion = "2.3.1"
+val sparkVersion = "2.4.3"
 
 lazy val commonProvidedDependencies = Seq(
   "org.apache.spark" %% "spark-core" % sparkVersion % "provided",

@@ -6,13 +6,14 @@ import java.util.Optional
 import java.util.concurrent.{BlockingQueue, TimeUnit}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
-import org.apache.spark.sql.sources.v2.reader.{DataReader, DataReaderFactory}
+import org.apache.spark.sql.sources.v2.reader.{DataSourceReader, InputPartition, InputPartitionReader}
 import org.apache.spark.sql.sources.v2.{DataSourceOptions, DataSourceV2, MicroBatchReadSupport}
 import org.apache.spark.sql.types._
-
+import org.apache.spark.unsafe.types.UTF8String
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
@@ -23,7 +24,7 @@ import scala.collection.mutable.ListBuffer
   * May need to switch their new web service https://wikitech.wikimedia.org/wiki/EventStreams
   *
   *
-  * Created by hluu on 3/3/18.
+  * Updated by hluu on 7/4/19.
   */
 class WikiEditSourceV2 extends MicroBatchReadSupport with DataSourceRegister with Logging {
   override def createMicroBatchReader(
@@ -112,12 +113,12 @@ class WikiEditStreamMicroBatchReader(options: DataSourceOptions) extends MicroBa
     }
   }
 
-  override def createDataReaderFactories(): java.util.List[DataReaderFactory[Row]] = {
+  override def planInputPartitions(): java.util.List[InputPartition[InternalRow]] = {
     synchronized {
       val startOrdinal = startOffset.offset.toInt + 1
       val endOrdinal = endOffset.offset.toInt + 1
 
-      internalLog(s"createDataReaderFactories: sOrd: $startOrdinal, eOrd: $endOrdinal, " +
+      internalLog(s"planInputPartitions: sOrd: $startOrdinal, eOrd: $endOrdinal, " +
         s"lastOffsetCommitted: $lastOffsetCommitted")
 
       val newBlocks = synchronized {
@@ -128,7 +129,7 @@ class WikiEditStreamMicroBatchReader(options: DataSourceOptions) extends MicroBa
       }
 
       newBlocks.grouped(numPartitions).map { block =>
-        new WikiEditStreamBatchTask(block).asInstanceOf[DataReaderFactory[Row]]
+        new WikiEditStreamBatchTask(block).asInstanceOf[InputPartition[InternalRow]]
       }.toList.asJava
     }
   }
@@ -227,11 +228,15 @@ object WikiEditSourceV2 {
 }
 
 class WikiEditStreamBatchTask(wikiEditEvents:ListBuffer[WikipediaEditEvent])
-  extends DataReaderFactory[Row] {
-  override def createDataReader(): DataReader[Row] = new WikiEditStreamBatchReader(wikiEditEvents)
+  extends InputPartition[InternalRow] {
+
+  override def createPartitionReader(): InputPartitionReader[InternalRow] =
+    new WikiEditStreamBatchReader(wikiEditEvents)
 }
 
-class WikiEditStreamBatchReader(wikiEditEvents:ListBuffer[WikipediaEditEvent]) extends DataReader[Row] {
+class WikiEditStreamBatchReader(wikiEditEvents:ListBuffer[WikipediaEditEvent])
+  extends InputPartitionReader[InternalRow] {
+
   private var currentIdx = -1
 
   override def next(): Boolean = {
@@ -240,10 +245,13 @@ class WikiEditStreamBatchReader(wikiEditEvents:ListBuffer[WikipediaEditEvent]) e
     currentIdx < wikiEditEvents.size
   }
 
-  override def get(): Row = {
+  override def get(): InternalRow = {
     val evt = wikiEditEvents(currentIdx)
-    Row(new Timestamp(evt.timeStamp), evt.channel, evt.title, evt.diffUrl, evt.user,
-      evt.byteDiff, evt.summary)
+
+    InternalRow(DateTimeUtils.fromMillis(evt.timeStamp), UTF8String.fromString(evt.channel),
+      UTF8String.fromString(evt.title), UTF8String.fromString(evt.diffUrl),
+      UTF8String.fromString(evt.user), evt.byteDiff,
+      UTF8String.fromString(evt.summary))
   }
 
   override def close(): Unit = {}

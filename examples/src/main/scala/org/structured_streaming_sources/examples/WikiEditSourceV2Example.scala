@@ -10,7 +10,7 @@ import org.structured_streaming_sources.wikedit.WikiEditSourceV2
   *
   * See here for a list of channels - https://meta.wikimedia.org/wiki/IRC/Channels
   *
-  * Created by hluu on 3/4/18.
+  * Updated by hluu on 7/4/19.
   */
 object WikiEditSourceV2Example {
   private val SOURCE_PROVIDER_CLASS = WikiEditSourceV2.getClass.getCanonicalName
@@ -48,11 +48,11 @@ object WikiEditSourceV2Example {
 
 
     println("**** There is data now.  Showing them")
-    spark.sql("select * from wikiedit").show
+    spark.sql("select * from wikiedit").show(false)
 
     Thread.sleep(TimeUnit.SECONDS.toMillis(3))
 
-    spark.sql("select * from wikiedit").show
+    spark.sql("select * from wikiedit").show(false)
 
     val wikiEditCount = spark.sql("select * from wikiedit").count;
     println(s"There are total of $wikiEditCount in memory table");

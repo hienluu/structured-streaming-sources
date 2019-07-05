@@ -1,17 +1,18 @@
 package org.structured_streaming_sources.twitter
 
 import java.io.IOException
-import java.sql.Timestamp
 import java.util.Optional
 import java.util.concurrent.{ArrayBlockingQueue, BlockingQueue, TimeUnit}
 
 import org.apache.spark.internal.Logging
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.sources.v2.reader.streaming.{MicroBatchReader, Offset}
-import org.apache.spark.sql.sources.v2.reader.{DataReader, DataReaderFactory}
+import org.apache.spark.sql.sources.v2.reader.{DataSourceReader, InputPartition, InputPartitionReader}
 import org.apache.spark.sql.sources.v2.{DataSourceOptions, DataSourceV2, MicroBatchReadSupport}
 import org.apache.spark.sql.types._
+import org.apache.spark.unsafe.types.UTF8String
 import twitter4j._
 import twitter4j.auth.OAuthAuthorization
 import twitter4j.conf.ConfigurationBuilder
@@ -21,7 +22,7 @@ import scala.collection.mutable.ListBuffer
 
 
 /**
-  * Created by hluu on 3/10/18.
+  * Updated by hluu on 7/4/19
   */
 class TwitterStreamingSource extends MicroBatchReadSupport with DataSourceRegister with Logging {
 
@@ -42,6 +43,8 @@ class TwitterStreamMicroBatchReader(options: DataSourceOptions) extends MicroBat
   private val accessTokenSecret = options.get(TwitterStreamingSource.ACCESS_TOKEN_SECRET).orElse("")
   private val numPartitions = options.get(TwitterStreamingSource.NUM_PARTITIONS).orElse("5").toInt
   private val queueSize = options.get(TwitterStreamingSource.QUEUE_SIZE).orElse("512").toInt
+  private val language = options.get(TwitterStreamingSource.LANGUAGE).orElse("")
+  private val filterBy = options.get(TwitterStreamingSource.FITLER_BY).orElse("")
 
   private val debugLevel = options.get(TwitterStreamingSource.DEBUG_LEVEL).orElse("debug").toLowerCase
 
@@ -101,6 +104,7 @@ class TwitterStreamMicroBatchReader(options: DataSourceOptions) extends MicroBat
       }
     })
 
+
     worker = new Thread("Tweet Worker") {
       setDaemon(true)
       override def run() {
@@ -110,7 +114,25 @@ class TwitterStreamMicroBatchReader(options: DataSourceOptions) extends MicroBat
     worker.start()
 
     // start receiving tweets
-    twitterStream.sample()
+    //val filter:FilterQuery = new FilterQuery().language("en").track("trump");
+    if (!filterBy.isEmpty) {
+      val filter:FilterQuery = new FilterQuery()
+      filter.track(filterBy.split(","):_*)
+      if (!language.isEmpty) {
+        filter.language(language)
+      }
+
+      logInfo("**** filtering with: " + filter.toString)
+      twitterStream.filter(filter)
+    } else {
+      logInfo("**** sample")
+      if (language.isEmpty) {
+        twitterStream.sample()
+      } else {
+        twitterStream.sample(language);
+      }
+    }
+
   }
 
   private def receive(): Unit = {
@@ -130,7 +152,7 @@ class TwitterStreamMicroBatchReader(options: DataSourceOptions) extends MicroBat
   }
 
 
-  override def createDataReaderFactories(): java.util.List[DataReaderFactory[Row]] = {
+  override def planInputPartitions(): java.util.List[InputPartition[InternalRow]] = {
     synchronized {
       val startOrdinal = startOffset.offset.toInt + 1
       val endOrdinal = endOffset.offset.toInt + 1
@@ -146,7 +168,7 @@ class TwitterStreamMicroBatchReader(options: DataSourceOptions) extends MicroBat
       }
 
       newBlocks.grouped(numPartitions).map { block =>
-        new TweetStreamBatchTask(block).asInstanceOf[DataReaderFactory[Row]]
+        new TweetStreamBatchTask(block).asInstanceOf[InputPartition[InternalRow]]
       }.toList.asJava
     }
   }
@@ -241,6 +263,8 @@ object TwitterStreamingSource {
   val DEBUG_LEVEL = "debugLevel"
   val NUM_PARTITIONS = "numPartitions"
   val QUEUE_SIZE = "queueSize"
+  val LANGUAGE = "language"
+  val FITLER_BY = "filter"
 
 
   val SCHEMA =
@@ -254,11 +278,14 @@ object TwitterStreamingSource {
 }
 
 class TweetStreamBatchTask(tweetList:ListBuffer[Status])
-  extends DataReaderFactory[Row] {
-  override def createDataReader(): DataReader[Row] = new TweetStreamBatchReader(tweetList)
+  extends InputPartition[InternalRow] {
+  override def createPartitionReader(): InputPartitionReader[InternalRow] =
+    new TweetStreamBatchReader(tweetList)
 }
 
-class TweetStreamBatchReader(tweetList:ListBuffer[Status]) extends DataReader[Row] {
+class TweetStreamBatchReader(tweetList:ListBuffer[Status])
+  extends InputPartitionReader[InternalRow] {
+
   private var currentIdx = -1
 
   override def next(): Boolean = {
@@ -267,10 +294,13 @@ class TweetStreamBatchReader(tweetList:ListBuffer[Status]) extends DataReader[Ro
     currentIdx < tweetList.size
   }
 
-  override def get(): Row = {
+  override def get(): InternalRow = {
     val tweet = tweetList(currentIdx)
-    Row(tweet.getText, tweet.getUser.getScreenName, tweet.getUser.getLang, new Timestamp(tweet.getCreatedAt.getTime),
-        tweet.isRetweeted)
+    InternalRow(UTF8String.fromString(tweet.getText),
+      UTF8String.fromString(tweet.getUser.getScreenName),
+      UTF8String.fromString(tweet.getLang /*tweet.getUser.getLang*/),
+      DateTimeUtils.fromMillis(tweet.getCreatedAt.getTime),
+      tweet.isRetweeted)
   }
 
   override def close(): Unit = {}
